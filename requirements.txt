@@ -4,4 +4,3 @@ openpyxl
 google-api-python-client
 google-auth
 plotly
-mv "requirements (1).txt" requirements.txt

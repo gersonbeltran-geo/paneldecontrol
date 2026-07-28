@@ -26,8 +26,9 @@ h1 { font-weight: 800; }
 
 @st.cache_resource
 def get_drive_service():
-    creds = service_account.Credentials.from_service_account_file(
-        CREDS_PATH, scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = service_account.Credentials.from_service_account_info(
+        creds_dict, scopes=["https://www.googleapis.com/auth/drive.readonly"]
     )
     return build("drive", "v3", credentials=creds)
 

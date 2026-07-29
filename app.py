@@ -97,6 +97,9 @@ with st.expander("🔍 Filtros", expanded=False):
     captacion_f = c5.multiselect("Captación", sorted(df["CAPTACIÓN"].dropna().unique()))
     herramientas_f = c6.multiselect("Herramientas", sorted(df["HERRAMIENTAS"].dropna().unique()))
 
+    c7, _, _ = st.columns(3)
+    subestado_f = c7.multiselect("Subestado", sorted(df["SUBESTADO"].dropna().unique()))
+
 f = df.copy()
 if estado_f:
     f = f[f["ESTADO"].isin(estado_f)]
@@ -110,6 +113,8 @@ if captacion_f:
     f = f[f["CAPTACIÓN"].isin(captacion_f)]
 if herramientas_f:
     f = f[f["HERRAMIENTAS"].isin(herramientas_f)]
+if subestado_f:
+    f = f[f["SUBESTADO"].isin(subestado_f)]
 
 # --- KPIs ---
 k1, k2, k3, k4 = st.columns(4)

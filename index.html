@@ -296,6 +296,7 @@ function aCSV(leads) {
   return [CAMPOS.join(","), ...leads.map(l => CAMPOS.map(c => esc(l[c])).join(","))].join("\n");
 }
 function desdeCSV(texto) {
+  texto = texto.replace(/^\uFEFF/, "");
   const filas = [];
   let campo = "",
     fila = [],

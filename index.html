@@ -1496,85 +1496,74 @@ function Candado({
 }
 
 /* ── Pantalla de configuración de Firebase (una vez por navegador) ─── */
-function PantallaFirebase({
-  onListo
-}) {
-  const [texto, setTexto] = useState(localStorage.getItem("playgo:firebase-config") || "");
-  const [error, setError] = useState("");
-  const [conectando, setConectando] = useState(false);
-  const conectar = async () => {
-    setError("");
-    setConectando(true);
-    try {
-      const config = JSON.parse(texto);
-      await inicializarFirebase(config);
-      localStorage.setItem("playgo:firebase-config", texto);
-      onListo();
-    } catch (e) {
-      setError("No se pudo conectar. Revisa que hayas pegado el objeto de configuración completo y que la Autenticación anónima esté activada en el proyecto de Firebase.");
-    }
-    setConectando(false);
-  };
-  return /*#__PURE__*/React.createElement("div", {
-    className: "flex min-h-screen items-center justify-center bg-[#0A0D13] px-5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-full max-w-md rounded-xl border border-[#1E232D] bg-[#0E1219] p-6"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-[16px] font-semibold text-[#F0F3F8]"
-  }, "Conectar base de datos compartida"), /*#__PURE__*/React.createElement("p", {
-    className: "mt-2 text-[12.5px] leading-relaxed text-[#6E7688]"
-  }, "Pega aquí el objeto ", /*#__PURE__*/React.createElement("code", null, "firebaseConfig"), " de tu proyecto de Firebase (Configuración del proyecto → tus apps → SDK). Solo hace falta hacerlo una vez por navegador — a partir de ahí todos los que usen esta misma configuración verán los mismos leads."), /*#__PURE__*/React.createElement("textarea", {
-    value: texto,
-    onChange: e => setTexto(e.target.value),
-    rows: 7,
-    placeholder: '{\n  "apiKey": "...",\n  "authDomain": "...",\n  "projectId": "...",\n  ...\n}',
-    className: "mt-4 w-full rounded-lg border border-[#2A2F3A] bg-[#141821] px-3 py-2.5 font-mono text-[12px] text-[#D6DBE5] outline-none focus:border-[#4A5468]"
-  }), error && /*#__PURE__*/React.createElement("p", {
-    className: "mt-2 flex items-start gap-1.5 text-[12px] text-[#C4707E]"
-  }, /*#__PURE__*/React.createElement(AlertCircle, {
-    size: 13,
-    className: "mt-0.5 shrink-0"
-  }), " ", error), /*#__PURE__*/React.createElement("button", {
-    onClick: conectar,
-    disabled: conectando || !texto.trim(),
-    className: "mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-[#E8843C] px-4 py-2.5 text-[13.5px] font-medium text-[#0A0D13] disabled:opacity-40"
-  }, conectando && /*#__PURE__*/React.createElement(Loader2, {
-    size: 14,
-    className: "animate-spin"
-  }), conectando ? "Conectando…" : "Conectar y continuar")));
-}
+/* ── Configuración fija de Firebase del proyecto ──────────────────────
+   No es un dato secreto: la protección real la dan las reglas de
+   Firestore (solo usuarios autenticados) más la contraseña de entrada. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCpfh4o-pLjtsU09-8zAUZezssnrcxRlv4",
+  authDomain: "playgoxpleads.firebaseapp.com",
+  projectId: "playgoxpleads",
+  storageBucket: "playgoxpleads.firebasestorage.app",
+  messagingSenderId: "504866717740",
+  appId: "1:504866717740:web:42c88380724378b5a65189"
+};
 
-/* ── Pantalla de configuración de API key ─────────────────────────── */
-function PantallaApiKey({
-  onListo
-}) {
+/* ── Botón + modal opcional para configurar la API key de Anthropic ─── */
+function AjustesIA() {
+  const [abierto, setAbierto] = useState(false);
   const [valor, setValor] = useState(localStorage.getItem("playgo:api-key") || "");
+  const [tieneKey, setTieneKey] = useState(!!localStorage.getItem("playgo:api-key"));
+
   const guardar = () => {
     localStorage.setItem("playgo:api-key", valor.trim());
-    onListo();
+    setTieneKey(!!valor.trim());
+    setAbierto(false);
   };
-  return /*#__PURE__*/React.createElement("div", {
-    className: "flex min-h-screen items-center justify-center bg-[#0A0D13] px-5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-full max-w-sm rounded-xl border border-[#1E232D] bg-[#0E1219] p-6"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-[16px] font-semibold text-[#F0F3F8]"
-  }, "API key de Anthropic"), /*#__PURE__*/React.createElement("p", {
-    className: "mt-2 text-[12.5px] leading-relaxed text-[#6E7688]"
-  }, "Necesaria para las búsquedas y generación de emails con IA. Se guarda solo en este navegador (localStorage), no se envía a ningún sitio salvo a la API de Anthropic. Cualquiera con acceso a este equipo/navegador podría verla — no es un secreto de servidor."), /*#__PURE__*/React.createElement("input", {
-    type: "password",
-    value: valor,
-    onChange: e => setValor(e.target.value),
-    placeholder: "sk-ant-...",
-    className: "mt-4 w-full rounded-lg border border-[#2A2F3A] bg-[#141821] px-3 py-2.5 text-[13.5px] text-[#D6DBE5] outline-none focus:border-[#4A5468]"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: guardar,
-    disabled: !valor.trim(),
-    className: "mt-3 w-full rounded-lg bg-[#E8843C] px-4 py-2.5 text-[13.5px] font-medium text-[#0A0D13] disabled:opacity-40"
-  }, "Guardar y continuar"), /*#__PURE__*/React.createElement("button", {
-    onClick: onListo,
-    className: "mt-2 w-full text-[12px] text-[#5C6478] hover:text-[#8B93A3]"
-  }, "Saltar por ahora (las funciones de IA no funcionarán)")));
+  const borrar = () => {
+    localStorage.removeItem("playgo:api-key");
+    setValor("");
+    setTieneKey(false);
+  };
+
+  return /*#__PURE__*/React.createElement(React.Fragment, null,
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setAbierto(true),
+      title: "Configurar funciones de IA (opcional)",
+      className: "fixed bottom-4 right-4 z-40 flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[12px] shadow-lg backdrop-blur transition-colors",
+      style: { borderColor: tieneKey ? "#2E9E8F55" : "#2A2F3A", background: "#141821DD", color: tieneKey ? "#7FBCB0" : "#8B93A3" }
+    }, tieneKey ? "✓ IA activada" : "Activar funciones de IA"),
+    abierto && /*#__PURE__*/React.createElement("div", {
+      className: "fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5",
+      onClick: () => setAbierto(false)
+    }, /*#__PURE__*/React.createElement("div", {
+      onClick: e => e.stopPropagation(),
+      className: "w-full max-w-sm rounded-xl border border-[#1E232D] bg-[#0E1219] p-6"
+    },
+      /*#__PURE__*/React.createElement("div", { className: "flex items-center justify-between" },
+        /*#__PURE__*/React.createElement("h2", { className: "text-[16px] font-semibold text-[#F0F3F8]" }, "Funciones de IA (opcional)"),
+        /*#__PURE__*/React.createElement("button", { onClick: () => setAbierto(false), className: "text-[#5C6478] hover:text-[#9AA3B5]" }, /*#__PURE__*/React.createElement(X, { size: 16 }))
+      ),
+      /*#__PURE__*/React.createElement("p", {
+        className: "mt-2 text-[12.5px] leading-relaxed text-[#6E7688]"
+      }, "El panel funciona por completo sin esto: añadir, editar y consultar leads no tiene ningún coste. Esta clave solo hace falta si además quieres usar la búsqueda de empresas con IA, la búsqueda de contacto o la generación de emails — funciones que sí consumen créditos de pago de tu cuenta de Anthropic. Se guarda solo en este navegador."),
+      /*#__PURE__*/React.createElement("input", {
+        type: "password",
+        value: valor,
+        onChange: e => setValor(e.target.value),
+        placeholder: "sk-ant-...",
+        className: "mt-4 w-full rounded-lg border border-[#2A2F3A] bg-[#141821] px-3 py-2.5 text-[13.5px] text-[#D6DBE5] outline-none focus:border-[#4A5468]"
+      }),
+      /*#__PURE__*/React.createElement("button", {
+        onClick: guardar,
+        disabled: !valor.trim(),
+        className: "mt-3 w-full rounded-lg bg-[#E8843C] px-4 py-2.5 text-[13.5px] font-medium text-[#0A0D13] disabled:opacity-40"
+      }, "Guardar"),
+      tieneKey && /*#__PURE__*/React.createElement("button", {
+        onClick: borrar,
+        className: "mt-2 w-full text-[12px] text-[#C4707E] hover:text-[#D68A96]"
+      }, "Quitar la clave guardada")
+    ))
+  );
 }
 
 /* ── Raíz de la app ────────────────────────────────────────────────── */
@@ -1582,15 +1571,12 @@ function AppRaiz() {
   const [desbloqueado, setDesbloqueado] = useState(sessionStorage.getItem("playgo:desbloqueado") === "1");
   const [firebaseOk, setFirebaseOk] = useState(false);
   const [comprobando, setComprobando] = useState(true);
-  const [apiKeyLista, setApiKeyLista] = useState(!!localStorage.getItem("playgo:api-key"));
+
   useEffect(() => {
-    const guardada = localStorage.getItem("playgo:firebase-config");
-    if (!guardada) {
-      setComprobando(false);
-      return;
-    }
-    inicializarFirebase(JSON.parse(guardada)).then(() => setFirebaseOk(true)).catch(() => {}).finally(() => setComprobando(false));
-  }, []);
+    if (!desbloqueado) return;
+    inicializarFirebase(FIREBASE_CONFIG).then(() => setFirebaseOk(true)).finally(() => setComprobando(false));
+  }, [desbloqueado]);
+
   if (!desbloqueado) return /*#__PURE__*/React.createElement(Candado, {
     onDesbloqueado: () => setDesbloqueado(true)
   });
@@ -1602,13 +1588,17 @@ function AppRaiz() {
       size: 22
     }));
   }
-  if (!firebaseOk) return /*#__PURE__*/React.createElement(PantallaFirebase, {
-    onListo: () => setFirebaseOk(true)
-  });
-  if (!apiKeyLista) return /*#__PURE__*/React.createElement(PantallaApiKey, {
-    onListo: () => setApiKeyLista(true)
-  });
-  return /*#__PURE__*/React.createElement(PanelLeadsPanel, null);
+  if (!firebaseOk) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex min-h-screen items-center justify-center bg-[#0A0D13] px-5 text-center"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "text-[13px] text-[#C4707E]"
+    }, "No se pudo conectar con la base de datos compartida. Recarga la página o revisa tu conexión."));
+  }
+  return /*#__PURE__*/React.createElement(React.Fragment, null,
+    /*#__PURE__*/React.createElement(PanelLeadsPanel, null),
+    /*#__PURE__*/React.createElement(AjustesIA, null)
+  );
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(AppRaiz, null));
 </script>

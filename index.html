@@ -1163,6 +1163,13 @@ function PanelLeadsPanel() {
     r.readAsText(f, "utf-8");
     e.target.value = "";
   };
+  const vaciarTodo = () => {
+    if (!leads.length) return;
+    if (!window.confirm(`Esto eliminará los ${leads.length} leads de la base. No se puede deshacer. ¿Continuar?`)) return;
+    if (!window.confirm("Segunda confirmación: ¿de verdad quieres borrar TODOS los leads?")) return;
+    setLeads([]);
+    setAviso("Base de leads vaciada.");
+  };
   if (cargando) {
     return /*#__PURE__*/React.createElement("div", {
       className: "flex min-h-[400px] items-center justify-center bg-[#0A0D13]"
@@ -1205,7 +1212,13 @@ function PanelLeadsPanel() {
     accept: ".csv,text/csv",
     onChange: importar,
     className: "hidden"
-  }))), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: vaciarTodo,
+    disabled: !leads.length,
+    className: "flex items-center gap-1.5 rounded-lg border border-[#3A2226] px-3.5 py-2 text-[13px] text-[#C4707E] transition-colors hover:border-[#5A2E35] disabled:opacity-40"
+  }, /*#__PURE__*/React.createElement(Trash2, {
+    size: 15
+  }), " Vaciar todo"))), /*#__PURE__*/React.createElement("div", {
     className: "mb-6 flex gap-2"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setVista("leads"),

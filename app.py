@@ -92,6 +92,11 @@ with st.expander("🔍 Filtros", expanded=False):
     linea_f = c2.multiselect("Línea de negocio", sorted(df["LÍNEA DE NEGOCIO"].dropna().unique()))
     resp_f = c3.multiselect("Responsable", sorted(df["RESPONSABLE"].dropna().unique()))
 
+    c4, c5, c6 = st.columns(3)
+    tipologia_f = c4.multiselect("Tipología de clientes", sorted(df["TIPOLOGÍA DE CLIENTES"].dropna().unique()))
+    captacion_f = c5.multiselect("Captación", sorted(df["CAPTACIÓN"].dropna().unique()))
+    herramientas_f = c6.multiselect("Herramientas", sorted(df["HERRAMIENTAS"].dropna().unique()))
+
 f = df.copy()
 if estado_f:
     f = f[f["ESTADO"].isin(estado_f)]
@@ -99,6 +104,12 @@ if linea_f:
     f = f[f["LÍNEA DE NEGOCIO"].isin(linea_f)]
 if resp_f:
     f = f[f["RESPONSABLE"].isin(resp_f)]
+if tipologia_f:
+    f = f[f["TIPOLOGÍA DE CLIENTES"].isin(tipologia_f)]
+if captacion_f:
+    f = f[f["CAPTACIÓN"].isin(captacion_f)]
+if herramientas_f:
+    f = f[f["HERRAMIENTAS"].isin(herramientas_f)]
 
 # --- KPIs ---
 k1, k2, k3, k4 = st.columns(4)

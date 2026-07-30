@@ -423,6 +423,19 @@ Requisitos: asunto ≤8 palabras; menciona la señal sin inventar datos; propone
 
 Responde SOLO con JSON: {"asunto":"","cuerpo":""}`;
 };
+// Intenta parsear JSON, y si falla, repara los fallos más típicos de un modelo
+// (comillas simples en vez de dobles, comas finales antes de } o ]).
+function parsearJSONTolerante(texto) {
+  try {
+    return JSON.parse(texto);
+  } catch { /* seguimos con reparaciones */ }
+  let reparado = texto
+    .replace(/,\s*([}\]])/g, "$1")
+    .replace(/'([^']*)'(\s*:)/g, '"$1"$2')
+    .replace(/:\s*'([^']*)'/g, ': "$1"');
+  return JSON.parse(reparado);
+}
+
 async function generarEmail(lead) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -443,7 +456,12 @@ async function generarEmail(lead) {
   const ini = limpio.indexOf("{"),
     fin = limpio.lastIndexOf("}");
   if (ini === -1 || fin === -1) throw new Error("La respuesta no traía un email legible.");
-  return JSON.parse(limpio.slice(ini, fin + 1));
+  try {
+    return parsearJSONTolerante(limpio.slice(ini, fin + 1));
+  } catch (e) {
+    console.error("JSON inválido en respuesta de email:", limpio);
+    throw new Error("La respuesta llegó con un formato inválido. Vuelve a intentarlo.");
+  }
 }
 
 /* ── Rebuscar solo el contacto de un lead ya guardado ─────────── */
@@ -487,10 +505,14 @@ async function buscarContacto(lead) {
   const data = await r.json();
   const texto = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
   const limpio = texto.replace(/```json|```/g, "").trim();
-  const ini = limpio.indexOf("{"),
-    fin = limpio.lastIndexOf("}");
-  if (ini === -1 || fin === -1) throw new Error("No se encontró un contacto claro para esta empresa.");
-  return JSON.parse(limpio.slice(ini, fin + 1));
+  const coincidencias = limpio.match(/\{[^{}]*\}/g);
+  if (!coincidencias || !coincidencias.length) throw new Error("No se encontró un contacto claro para esta empresa.");
+  try {
+    return parsearJSONTolerante(coincidencias[coincidencias.length - 1]);
+  } catch (e) {
+    console.error("JSON inválido en respuesta de contacto:", limpio);
+    throw new Error("La respuesta llegó con un formato inválido. Vuelve a intentarlo.");
+  }
 }
 
 /* ── Componentes comunes ──────────────────────────────────── */

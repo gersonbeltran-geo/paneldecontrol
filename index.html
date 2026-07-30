@@ -287,7 +287,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 /* ── CSV ──────────────────────────────────────────────────── */
 
-const CAMPOS = ["empresa", "sector", "etapa", "tecnologia", "tecnologia_motivo", "web", "contacto", "cargo", "email", "linkedin", "ubicacion", "senal", "notas", "email_asunto", "email_cuerpo", "creado"];
+const CAMPOS = ["empresa", "sector", "etapa", "tecnologia", "tecnologia_motivo", "web", "contacto", "cargo", "email", "email_origen", "linkedin", "ubicacion", "senal", "notas", "email_asunto", "email_cuerpo", "creado"];
 function aCSV(leads) {
   const esc = v => {
     const s = String(v ?? "");
@@ -297,6 +297,8 @@ function aCSV(leads) {
 }
 function desdeCSV(texto) {
   texto = texto.replace(/^\uFEFF/, "");
+  const primeraLinea = texto.split(/\r?\n/, 1)[0] || "";
+  const sep = primeraLinea.split(";").length > primeraLinea.split(",").length ? ";" : ",";
   const filas = [];
   let campo = "",
     fila = [],
@@ -310,7 +312,7 @@ function desdeCSV(texto) {
           i++;
         } else dentro = false;
       } else campo += c;
-    } else if (c === '"') dentro = true;else if (c === ",") {
+    } else if (c === '"') dentro = true;else if (c === sep) {
       fila.push(campo);
       campo = "";
     } else if (c === "\n" || c === "\r") {
@@ -453,16 +455,24 @@ Web: ${lead.web || "desconocida"}
 
 NO busques al presidente, CEO ni dirección general, salvo que sea una empresa muy pequeña sin otro interlocutor posible. Prioriza en este orden: responsable de innovación/transformación digital, responsable de marketing o comunicación, responsable de experiencia de cliente/visitante, director comercial.
 
-Para el email, busca en este orden: (1) la web oficial de la empresa (páginas de equipo, contacto, notas de prensa con firma), (2) resultados de Google que crucen el nombre de la persona con la empresa, (3) LinkedIn solo como última vía si no aparece en ningún otro sitio. El perfil de LinkedIn es un dato de apoyo (fallback), no el único contacto válido: intenta siempre dar también un email o, como mínimo, el cargo exacto de la persona para que se la pueda localizar por otra vía. Nunca inventes datos: si no encuentras alguno, deja el campo vacío.
+PASO 1 — Identifica a la persona. Busca en varias fuentes hasta encontrar un nombre real: web oficial (equipo, "sobre nosotros", notas de prensa con firma), LinkedIn (busca "[cargo] [empresa]" y también el listado de empleados de la empresa en LinkedIn), Google, X/Twitter e Instagram de la empresa (biografías de quien gestiona el perfil, posts firmados), ponentes o participantes de la empresa en ferias/webinars/podcasts del sector, artículos de prensa sectorial que la citen.
 
-Responde SOLO con JSON: {"contacto":"","cargo":"","email":"","linkedin":""}`;
+PASO 2 — Consigue su email, en este orden de prioridad:
+(a) Email directo publicado en la web oficial o en notas de prensa.
+(b) Email que aparezca en Google cruzando su nombre con la empresa.
+(c) Si no hay email directo publicado de esa persona, busca el patrón de email corporativo de la empresa observando otros emails públicos del mismo dominio (ej. en la web, en LinkedIn de otros empleados, en notas de prensa de otros compañeros) — nombre.apellido@, ninicial.apellido@, nombre@, etc. — y si detectas un patrón claro, constrúyelo para esta persona. Marca ese caso como "inferido", nunca lo des como confirmado.
+(d) Si no encuentras ni email directo ni patrón fiable, deja el email vacío — no inventes sin ninguna base.
+
+El perfil de LinkedIn es un dato de apoyo (fallback), no el único contacto válido: intenta siempre dar también un email (directo o inferido) o, como mínimo, el cargo exacto de la persona para que se la pueda localizar por otra vía.
+
+Responde SOLO con JSON: {"contacto":"","cargo":"","email":"","email_origen":"directo|inferido|no_encontrado","linkedin":""}`;
 async function buscarContacto(lead) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: anthropicHeaders(),
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 800,
+      max_tokens: 1200,
       messages: [{
         role: "user",
         content: PROMPT_CONTACTO(lead)
@@ -657,6 +667,7 @@ function BloqueContacto({
         contacto: r.contacto || lead.contacto,
         cargo: r.cargo || lead.cargo,
         email: r.email || lead.email,
+        email_origen: r.email ? r.email_origen || "directo" : lead.email_origen,
         linkedin: r.linkedin || lead.linkedin
       });
     } catch (e) {
@@ -672,7 +683,14 @@ function BloqueContacto({
     className: "flex items-center gap-2"
   }, error && /*#__PURE__*/React.createElement("span", {
     className: "text-[11.5px] text-[#C4707E]"
-  }, error), /*#__PURE__*/React.createElement("button", {
+  }, error), lead.linkedin && /*#__PURE__*/React.createElement("a", {
+    href: lead.linkedin.startsWith("http") ? lead.linkedin : `https://${lead.linkedin}`,
+    target: "_blank",
+    rel: "noreferrer",
+    className: "flex items-center gap-1.5 rounded-lg border border-[#4C8FBF55] bg-[#4C8FBF12] px-2.5 py-1 text-[11.5px] text-[#7FAFDB] transition-colors hover:border-[#4C8FBF]"
+  }, /*#__PURE__*/React.createElement(ExternalLink, {
+    size: 12
+  }), " Ver LinkedIn"), /*#__PURE__*/React.createElement("button", {
     onClick: buscar,
     disabled: buscando || !lead.empresa,
     className: "flex items-center gap-1.5 rounded-lg border border-[#2A2F3A] px-2.5 py-1 text-[11.5px] text-[#8B93A3] transition-colors hover:border-[#3E4654] disabled:opacity-40"
@@ -716,7 +734,10 @@ function FichaLead({
     id: lead.tecnologia
   })), /*#__PURE__*/React.createElement("p", {
     className: "mt-0.5 text-[12.5px] text-[#6E7688]"
-  }, [lead.ubicacion, [lead.contacto, lead.cargo].filter(Boolean).join(" · "), lead.email].filter(Boolean).join(" · ") || "Sin datos de contacto", lead.linkedin && /*#__PURE__*/React.createElement("a", {
+  }, [lead.ubicacion, [lead.contacto, lead.cargo].filter(Boolean).join(" · "), lead.email].filter(Boolean).join(" · ") || "Sin datos de contacto", lead.email && lead.email_origen === "inferido" && /*#__PURE__*/React.createElement("span", {
+    className: "ml-1.5 rounded bg-[#3A2E14] px-1.5 py-0.5 text-[10.5px] uppercase tracking-wide text-[#D6A94E]",
+    title: "Email deducido por patrón corporativo, no confirmado directamente — verifica antes de enviar"
+  }, "a verificar"), lead.linkedin && /*#__PURE__*/React.createElement("a", {
     href: lead.linkedin.startsWith("http") ? lead.linkedin : `https://${lead.linkedin}`,
     target: "_blank",
     rel: "noreferrer",

@@ -141,7 +141,7 @@ PREGUNTAS = {
         lambda d: px.bar(d.groupby("RESPONSABLE")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
                           x="RESPONSABLE", y="IMPORTE ESTIMADO (SIN IVA)", color="RESPONSABLE"),
     "¿Qué tipología de cliente predomina?":
-        lambda d: px.pie(d, names="TIPOLOGÍA DE CLIENTES"),
+        lambda d: px.pie(d.dropna(subset=["TIPOLOGÍA DE CLIENTES"]), names="TIPOLOGÍA DE CLIENTES"),
     "¿Cómo se distribuye la probabilidad de conversión?":
         lambda d: px.histogram(d, x="PROBABILIDAD CONVERSIÓN", nbins=10),
     "¿Qué canal de captación funciona mejor (importe)?":

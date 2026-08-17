@@ -7,6 +7,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
 st.set_page_config(page_title="Panel Comercial", layout="wide", page_icon="📊")
+
 def check_password():
     def password_entered():
         if st.session_state["password"] == st.secrets["app_password"]:
@@ -14,7 +15,6 @@ def check_password():
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
-
     if "password_correct" not in st.session_state:
         st.text_input("Contraseña", type="password", on_change=password_entered, key="password")
         return False
@@ -22,24 +22,19 @@ def check_password():
         st.text_input("Contraseña", type="password", on_change=password_entered, key="password")
         st.error("Contraseña incorrecta")
         return False
-    else:
-        return True
+    return True
 
 if not check_password():
     st.stop()
 
 FILE_ID = "1Ha2pXVlHrtBFCkiTgwdWhTjKnw6SEfY3fGckqIffhLc"
-CREDS_PATH = "credenciales.json"
-SKIP_ROWS = 15  # fila 16 = cabecera real
+SKIP_ROWS = 15
+OBJETIVO_2026 = 750000
 
-# --- Estilo ---
 st.markdown("""
 <style>
 .stApp { background-color: #0e1117; }
-[data-testid="stMetric"] {
-    background: #1b1f2a; border-radius: 12px; padding: 16px;
-    border: 1px solid #2a2f3a;
-}
+[data-testid="stMetric"] { background: #1b1f2a; border-radius: 12px; padding: 16px; border: 1px solid #2a2f3a; }
 h1 { font-weight: 800; }
 </style>
 """, unsafe_allow_html=True)
@@ -73,10 +68,29 @@ def load_data(_service, file_id):
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
+def year_columns(df):
+    cols = {}
+    for c in df.columns:
+        try:
+            y = int(float(str(c).replace(",", ".")))
+            if 2015 <= y <= 2035:
+                cols[y] = c
+        except ValueError:
+            continue
+    return dict(sorted(cols.items()))
+
 service = get_drive_service()
 df = load_data(service, FILE_ID)
+YEAR_COLS = year_columns(df)
+for y, col in YEAR_COLS.items():
+    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-# --- Cabecera ---
+def importe_por_año(data, estados=None):
+    d = data.copy()
+    if estados:
+        d = d[d["ESTADO"].isin(estados)]
+    return {y: (d["IMPORTE ESTIMADO (SIN IVA)"] * d[col]).sum() for y, col in YEAR_COLS.items()}
+
 col_a, col_b = st.columns([5, 1])
 with col_a:
     st.title("📊 Panel de Seguimiento Comercial")
@@ -85,38 +99,27 @@ with col_b:
         st.cache_data.clear()
         st.rerun()
 
-# --- Filtros ---
 with st.expander("🔍 Filtros", expanded=False):
     c1, c2, c3 = st.columns(3)
     estado_f = c1.multiselect("Estado", sorted(df["ESTADO"].dropna().unique()))
     linea_f = c2.multiselect("Línea de negocio", sorted(df["LÍNEA DE NEGOCIO"].dropna().unique()))
     resp_f = c3.multiselect("Responsable", sorted(df["RESPONSABLE"].dropna().unique()))
-
     c4, c5, c6 = st.columns(3)
     tipologia_f = c4.multiselect("Tipología de clientes", sorted(df["TIPOLOGÍA DE CLIENTES"].dropna().unique()))
     captacion_f = c5.multiselect("Captación", sorted(df["CAPTACIÓN"].dropna().unique()))
     herramientas_f = c6.multiselect("Herramientas", sorted(df["HERRAMIENTAS"].dropna().unique()))
-
     c7, _, _ = st.columns(3)
     subestado_f = c7.multiselect("Subestado", sorted(df["SUBESTADO"].dropna().unique()))
 
 f = df.copy()
-if estado_f:
-    f = f[f["ESTADO"].isin(estado_f)]
-if linea_f:
-    f = f[f["LÍNEA DE NEGOCIO"].isin(linea_f)]
-if resp_f:
-    f = f[f["RESPONSABLE"].isin(resp_f)]
-if tipologia_f:
-    f = f[f["TIPOLOGÍA DE CLIENTES"].isin(tipologia_f)]
-if captacion_f:
-    f = f[f["CAPTACIÓN"].isin(captacion_f)]
-if herramientas_f:
-    f = f[f["HERRAMIENTAS"].isin(herramientas_f)]
-if subestado_f:
-    f = f[f["SUBESTADO"].isin(subestado_f)]
+if estado_f: f = f[f["ESTADO"].isin(estado_f)]
+if linea_f: f = f[f["LÍNEA DE NEGOCIO"].isin(linea_f)]
+if resp_f: f = f[f["RESPONSABLE"].isin(resp_f)]
+if tipologia_f: f = f[f["TIPOLOGÍA DE CLIENTES"].isin(tipologia_f)]
+if captacion_f: f = f[f["CAPTACIÓN"].isin(captacion_f)]
+if herramientas_f: f = f[f["HERRAMIENTAS"].isin(herramientas_f)]
+if subestado_f: f = f[f["SUBESTADO"].isin(subestado_f)]
 
-# --- KPIs ---
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("Oportunidades", len(f))
 k2.metric("Importe estimado", f'{f["IMPORTE ESTIMADO (SIN IVA)"].sum():,.0f} €')
@@ -124,41 +127,115 @@ k3.metric("Importe ponderado", f'{f["IMPORTE PONDERADO (SIN IVA)"].sum():,.0f} �
 k4.metric("Prob. media", f'{f["PROBABILIDAD CONVERSIÓN"].mean():.0%}' if len(f) else "-")
 
 st.divider()
-
-# --- Preguntas de negocio ---
-st.subheader("💡 Preguntas de negocio")
-
-PREGUNTAS = {
-    "¿Qué línea de negocio genera más importe?":
-        lambda d: px.bar(d.groupby("LÍNEA DE NEGOCIO")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
-                          x="LÍNEA DE NEGOCIO", y="IMPORTE ESTIMADO (SIN IVA)", color="LÍNEA DE NEGOCIO"),
-    "¿Cuáles son los clientes con mayor importe ponderado?":
-        lambda d: px.bar(d.groupby("CLIENTE")["IMPORTE PONDERADO (SIN IVA)"].sum().nlargest(10).reset_index(),
-                          x="CLIENTE", y="IMPORTE PONDERADO (SIN IVA)"),
-    "¿En qué estado está el pipeline?":
-        lambda d: px.pie(d, names="ESTADO", title="Distribución por estado"),
-    "¿Qué responsable lleva más importe?":
-        lambda d: px.bar(d.groupby("RESPONSABLE")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
-                          x="RESPONSABLE", y="IMPORTE ESTIMADO (SIN IVA)", color="RESPONSABLE"),
-    "¿Qué tipología de cliente predomina?":
-        lambda d: px.pie(d.dropna(subset=["TIPOLOGÍA DE CLIENTES"]), names="TIPOLOGÍA DE CLIENTES"),
-    "¿Cómo se distribuye la probabilidad de conversión?":
-        lambda d: px.histogram(d, x="PROBABILIDAD CONVERSIÓN", nbins=10),
-    "¿Qué canal de captación funciona mejor (importe)?":
-        lambda d: px.bar(d.groupby("CAPTACIÓN")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
-                          x="CAPTACIÓN", y="IMPORTE ESTIMADO (SIN IVA)", color="CAPTACIÓN"),
-}
-
-pregunta = st.selectbox("Elige una pregunta:", list(PREGUNTAS.keys()))
-try:
-    fig = PREGUNTAS[pregunta](f)
-    fig.update_layout(template="plotly_dark", height=450)
-    st.plotly_chart(fig, use_container_width=True)
-except Exception as e:
-    st.warning(f"No se pudo generar esta vista con los filtros actuales: {e}")
+st.subheader("📅 Importe de proyectos por año (2019-2026)")
+importes_proyecto = importe_por_año(f, estados=["PROYECTO"])
+df_años = pd.DataFrame({"Año": list(importes_proyecto.keys()), "Importe": list(importes_proyecto.values())})
+fig_años = px.bar(df_años, x="Año", y="Importe", text_auto=".2s")
+fig_años.update_layout(template="plotly_dark", height=400)
+st.plotly_chart(fig_años, use_container_width=True)
+st.metric("Total acumulado del periodo", f'{df_años["Importe"].sum():,.0f} €')
 
 st.divider()
+st.subheader("🎯 Oportunidades 2026 (ponderado vs sin ponderar)")
+oportunidades_2026 = f[f["ESTADO"] == "OPORTUNIDAD"]
+col_2026 = YEAR_COLS.get(2026)
+if col_2026 is not None:
+    sin_pond = (oportunidades_2026["IMPORTE ESTIMADO (SIN IVA)"] * oportunidades_2026[col_2026]).sum()
+    pond = (oportunidades_2026["IMPORTE PONDERADO (SIN IVA)"] * oportunidades_2026[col_2026]).sum()
+else:
+    sin_pond = oportunidades_2026["IMPORTE ESTIMADO (SIN IVA)"].sum()
+    pond = oportunidades_2026["IMPORTE PONDERADO (SIN IVA)"].sum()
+oc1, oc2 = st.columns(2)
+oc1.metric("Sin ponderar 2026", f'{sin_pond:,.0f} €')
+oc2.metric("Ponderado 2026", f'{pond:,.0f} €')
 
-# --- Tabla detalle ---
+st.divider()
+st.subheader("🎯 Desviación vs objetivo 2026")
+real_2026 = importes_proyecto.get(2026, 0)
+desviacion = real_2026 - OBJETIVO_2026
+dc1, dc2, dc3 = st.columns(3)
+dc1.metric("Objetivo 2026", f'{OBJETIVO_2026:,.0f} €')
+dc2.metric("Real 2026", f'{real_2026:,.0f} €')
+dc3.metric("Desviación", f'{desviacion:,.0f} €')
+
+st.divider()
+st.subheader("📋 Proyectos en estado abierto")
+st.dataframe(f[f["SUBESTADO"] == "ABIERTO"], use_container_width=True)
+
+st.divider()
+st.subheader("📋 Oportunidades priorizadas por probabilidad de conversión")
+st.dataframe(
+    f[f["ESTADO"] == "OPORTUNIDAD"].sort_values("PROBABILIDAD CONVERSIÓN", ascending=False),
+    use_container_width=True
+)
+
+st.divider()
+st.subheader("🥧 Distribución general")
+g1, g2 = st.columns(2)
+with g1:
+    st.caption("Tipología de clientes")
+    fig1 = px.pie(f.dropna(subset=["TIPOLOGÍA DE CLIENTES"]), names="TIPOLOGÍA DE CLIENTES")
+    fig1.update_layout(template="plotly_dark", height=350)
+    st.plotly_chart(fig1, use_container_width=True)
+with g2:
+    st.caption("Herramientas")
+    fig2 = px.pie(f.dropna(subset=["HERRAMIENTAS"]), names="HERRAMIENTAS")
+    fig2.update_layout(template="plotly_dark", height=350)
+    st.plotly_chart(fig2, use_container_width=True)
+g3, g4 = st.columns(2)
+with g3:
+    st.caption("Línea de negocio")
+    fig3 = px.pie(f.dropna(subset=["LÍNEA DE NEGOCIO"]), names="LÍNEA DE NEGOCIO")
+    fig3.update_layout(template="plotly_dark", height=350)
+    st.plotly_chart(fig3, use_container_width=True)
+with g4:
+    st.caption("Canal de captación")
+    fig4 = px.pie(f.dropna(subset=["CAPTACIÓN"]), names="CAPTACIÓN")
+    fig4.update_layout(template="plotly_dark", height=350)
+    st.plotly_chart(fig4, use_container_width=True)
+
+st.divider()
+st.subheader("💰 ¿Qué canal de captación funciona mejor (por importe)?")
+fig_capt = px.bar(
+    f.groupby("CAPTACIÓN")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index().sort_values("IMPORTE ESTIMADO (SIN IVA)", ascending=False),
+    x="CAPTACIÓN", y="IMPORTE ESTIMADO (SIN IVA)", color="CAPTACIÓN"
+)
+fig_capt.update_layout(template="plotly_dark", height=400)
+st.plotly_chart(fig_capt, use_container_width=True)
+with st.expander("ℹ️ ¿Qué significa cada canal de captación?"):
+    st.markdown("""
+    - **Concurso abierto**: licitación pública a la que puede presentarse cualquier empresa que cumpla los requisitos.
+    - **Concurso directo**: adjudicación directa o concurso restringido, sin competencia abierta.
+    - **Directo**: contacto comercial iniciado directamente por PLAYGOXP con el cliente.
+    - **Indirecto**: oportunidad llegada a través de un tercero o intermediario, sin ser partner formal.
+    - **Partner**: generada a través de un socio o colaborador estable de la empresa.
+    - **Subvención**: proyecto vinculado a una convocatoria de ayuda o subvención pública.
+    - **Turismo**: oportunidad surgida específicamente del sector turístico (ferias, organismos de turismo, etc.).
+
+    *(Si alguna descripción no es exacta, dime cuál y la corrijo)*
+    """)
+
+st.divider()
+st.subheader("🏆 Top clientes por importe ponderado (por tipología)")
+top_clientes = (
+    f.dropna(subset=["TIPOLOGÍA DE CLIENTES"])
+     .groupby(["CLIENTE", "TIPOLOGÍA DE CLIENTES"])["IMPORTE PONDERADO (SIN IVA)"]
+     .sum().reset_index().sort_values("IMPORTE PONDERADO (SIN IVA)", ascending=False).head(15)
+)
+fig_top = px.bar(top_clientes, x="CLIENTE", y="IMPORTE PONDERADO (SIN IVA)", color="TIPOLOGÍA DE CLIENTES")
+fig_top.update_layout(template="plotly_dark", height=450)
+st.plotly_chart(fig_top, use_container_width=True)
+
+st.divider()
+st.subheader("👤 Importe por responsable (excluye Marcos y Ruth)")
+resp_data = f[~f["RESPONSABLE"].str.contains("Marcos|Ruth", case=False, na=False)]
+fig_resp = px.bar(
+    resp_data.groupby("RESPONSABLE")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
+    x="RESPONSABLE", y="IMPORTE ESTIMADO (SIN IVA)", color="RESPONSABLE"
+)
+fig_resp.update_layout(template="plotly_dark", height=400)
+st.plotly_chart(fig_resp, use_container_width=True)
+
+st.divider()
 with st.expander("📋 Ver tabla completa"):
     st.dataframe(f, use_container_width=True)

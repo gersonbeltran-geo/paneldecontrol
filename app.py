@@ -30,6 +30,7 @@ if not check_password():
 FILE_ID = "1Ha2pXVlHrtBFCkiTgwdWhTjKnw6SEfY3fGckqIffhLc"
 SKIP_ROWS = 15
 OBJETIVO_2026 = 750000
+EUR = st.column_config.NumberColumn(format="%.2f €")
 
 st.markdown("""
 <style>
@@ -73,7 +74,7 @@ def year_columns(df):
     for c in df.columns:
         try:
             y = int(float(str(c).replace(",", ".")))
-            if 2015 <= y <= 2035:
+            if 2020 <= y <= 2035:
                 cols[y] = c
         except ValueError:
             continue
@@ -81,9 +82,17 @@ def year_columns(df):
 
 service = get_drive_service()
 df = load_data(service, FILE_ID)
+
+# 2019 está mensualizado en las columnas P a AA (posiciones 15 a 26): se suma para obtener el total del año
+if len(df.columns) > 26:
+    cols_2019 = df.columns[15:27]
+    df["_2019_TOTAL"] = df[cols_2019].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+
 YEAR_COLS = year_columns(df)
 for y, col in YEAR_COLS.items():
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+if "_2019_TOTAL" in df.columns:
+    YEAR_COLS = {2019: "_2019_TOTAL", **YEAR_COLS}
 
 def importe_por_año(data, estados=None):
     d = data.copy()
@@ -120,10 +129,9 @@ if captacion_f: f = f[f["CAPTACIÓN"].isin(captacion_f)]
 if herramientas_f: f = f[f["HERRAMIENTAS"].isin(herramientas_f)]
 if subestado_f: f = f[f["SUBESTADO"].isin(subestado_f)]
 
-k1, k2, k3 = st.columns(3)
+k1, k2 = st.columns(2)
 k1.metric("Oportunidades", len(f))
 k2.metric("Importe estimado", f'{f["IMPORTE ESTIMADO (SIN IVA)"].sum():,.2f} €')
-k3.metric("Importe ponderado", f'{f["IMPORTE PONDERADO (SIN IVA)"].sum():,.2f} €')
 
 st.divider()
 st.subheader("📅 Importe de proyectos por año (2019-2026)")
@@ -160,13 +168,18 @@ dc3.metric("Desviación", f'{desviacion:,.2f} €')
 st.divider()
 proyectos_abiertos = f[f["SUBESTADO"] == "ABIERTO"]
 st.subheader(f"📋 Proyectos en estado abierto ({len(proyectos_abiertos)})")
-st.dataframe(proyectos_abiertos, use_container_width=True)
+st.dataframe(proyectos_abiertos, use_container_width=True, column_config={
+    "IMPORTE ESTIMADO (SIN IVA)": EUR, "IMPORTE PONDERADO (SIN IVA)": EUR
+})
 
 st.divider()
 st.subheader("📋 Oportunidades priorizadas por probabilidad de conversión")
-oportunidades_tabla = f[f["ESTADO"] == "OPORTUNIDAD"].sort_values("PROBABILIDAD CONVERSIÓN", ascending=False).copy()
-oportunidades_tabla["PROBABILIDAD CONVERSIÓN"] = (oportunidades_tabla["PROBABILIDAD CONVERSIÓN"] * 100).round(2).astype(str) + " %"
-st.dataframe(oportunidades_tabla, use_container_width=True)
+oportunidades_tabla = f[f["ESTADO"] == "OPORTUNIDAD"].sort_values("PROBABILIDAD CONVERSIÓN", ascending=False)
+st.dataframe(oportunidades_tabla, use_container_width=True, column_config={
+    "IMPORTE ESTIMADO (SIN IVA)": EUR,
+    "IMPORTE PONDERADO (SIN IVA)": EUR,
+    "PROBABILIDAD CONVERSIÓN": st.column_config.NumberColumn(format="percent")
+})
 
 st.divider()
 st.subheader("🥧 Distribución general")
@@ -203,15 +216,15 @@ fig_capt.update_layout(template="plotly_dark", height=400)
 st.plotly_chart(fig_capt, use_container_width=True)
 with st.expander("ℹ️ ¿Qué significa cada canal de captación?"):
     st.markdown("""
+    ⚠️ **Nota:** esta columna mezcla dos ideas distintas (el *canal* por el que llegó la oportunidad y, en el caso de "Turismo", el *sector*), y cada fila solo puede tener un valor. Por eso un proyecto turístico captado por concurso aparecerá como "Turismo" o como "Concurso abierto", pero no como ambos a la vez — están pendientes de separar en el Excel si se quiere un análisis más preciso.
+
     - **Concurso abierto**: licitación pública a la que puede presentarse cualquier empresa que cumpla los requisitos.
     - **Concurso directo**: adjudicación directa o concurso restringido, sin competencia abierta.
     - **Directo**: contacto comercial iniciado directamente por PLAYGOXP con el cliente.
     - **Indirecto**: oportunidad llegada a través de un tercero o intermediario, sin ser partner formal.
     - **Partner**: generada a través de un socio o colaborador estable de la empresa.
     - **Subvención**: proyecto vinculado a una convocatoria de ayuda o subvención pública.
-    - **Turismo**: oportunidad surgida específicamente del sector turístico (ferias, organismos de turismo, etc.).
-
-    *(Si alguna descripción no es exacta, dime cuál y la corrijo)*
+    - **Turismo**: oportunidad del sector turístico, registrada como tal en vez de por su canal real de entrada.
     """)
 
 st.divider()
@@ -236,33 +249,13 @@ fig_resp.update_layout(template="plotly_dark", height=400)
 st.plotly_chart(fig_resp, use_container_width=True)
 
 st.divider()
-st.subheader("💡 Preguntas de negocio")
-PREGUNTAS = {
-    "¿Qué línea de negocio genera más importe?":
-        lambda d: px.bar(d.groupby("LÍNEA DE NEGOCIO")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
-                          x="LÍNEA DE NEGOCIO", y="IMPORTE ESTIMADO (SIN IVA)", color="LÍNEA DE NEGOCIO"),
-    "¿Cuáles son los clientes con mayor importe ponderado?":
-        lambda d: px.bar(d.groupby("CLIENTE")["IMPORTE PONDERADO (SIN IVA)"].sum().nlargest(10).reset_index(),
-                          x="CLIENTE", y="IMPORTE PONDERADO (SIN IVA)"),
-    "¿En qué estado está el pipeline?":
-        lambda d: px.pie(d, names="ESTADO", title="Distribución por estado"),
-    "¿Qué responsable lleva más importe?":
-        lambda d: px.bar(d.groupby("RESPONSABLE")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
-                          x="RESPONSABLE", y="IMPORTE ESTIMADO (SIN IVA)", color="RESPONSABLE"),
-    "¿Qué tipología de cliente predomina?":
-        lambda d: px.pie(d.dropna(subset=["TIPOLOGÍA DE CLIENTES"]), names="TIPOLOGÍA DE CLIENTES"),
-    "¿Qué canal de captación funciona mejor (importe)?":
-        lambda d: px.bar(d.groupby("CAPTACIÓN")["IMPORTE ESTIMADO (SIN IVA)"].sum().reset_index(),
-                          x="CAPTACIÓN", y="IMPORTE ESTIMADO (SIN IVA)", color="CAPTACIÓN"),
-}
-pregunta = st.selectbox("Elige una pregunta:", list(PREGUNTAS.keys()))
-try:
-    fig = PREGUNTAS[pregunta](f)
-    fig.update_layout(template="plotly_dark", height=450)
-    st.plotly_chart(fig, use_container_width=True)
-except Exception as e:
-    st.warning(f"No se pudo generar esta vista con los filtros actuales: {e}")
+st.subheader("Situación del pipeline por estado")
+fig_pipeline = px.pie(f, names="ESTADO")
+fig_pipeline.update_layout(template="plotly_dark", height=450)
+st.plotly_chart(fig_pipeline, use_container_width=True)
 
 st.divider()
 with st.expander("📋 Ver tabla completa"):
-    st.dataframe(f, use_container_width=True)
+    st.dataframe(f, use_container_width=True, column_config={
+        "IMPORTE ESTIMADO (SIN IVA)": EUR, "IMPORTE PONDERADO (SIN IVA)": EUR
+    })

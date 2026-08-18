@@ -193,8 +193,11 @@ with g1:
     st.plotly_chart(fig1, use_container_width=True)
 with g2:
     st.caption("Herramientas")
-    fig2 = px.pie(f.dropna(subset=["HERRAMIENTAS"]), names="HERRAMIENTAS")
-    fig2.update_layout(template="plotly_dark", height=350)
+    datos_herr = f.dropna(subset=["HERRAMIENTAS"])
+    conteo_herr = datos_herr["HERRAMIENTAS"].value_counts().reset_index()
+    conteo_herr.columns = ["HERRAMIENTAS", "Nº oportunidades"]
+    fig2 = px.bar(conteo_herr.sort_values("Nº oportunidades"), x="Nº oportunidades", y="HERRAMIENTAS", orientation="h")
+    fig2.update_layout(template="plotly_dark", height=500)
     st.plotly_chart(fig2, use_container_width=True)
 g3, g4 = st.columns(2)
 with g3:
@@ -207,8 +210,11 @@ with g3:
     st.plotly_chart(fig3, use_container_width=True)
 with g4:
     st.caption("Canal de captación")
-    fig4 = px.pie(f.dropna(subset=["CAPTACIÓN"]), names="CAPTACIÓN")
-    fig4.update_layout(template="plotly_dark", height=350)
+    datos_capt = f.dropna(subset=["CAPTACIÓN"])
+    conteo_capt = datos_capt["CAPTACIÓN"].value_counts().reset_index()
+    conteo_capt.columns = ["CAPTACIÓN", "Nº oportunidades"]
+    fig4 = px.bar(conteo_capt.sort_values("Nº oportunidades"), x="Nº oportunidades", y="CAPTACIÓN", orientation="h")
+    fig4.update_layout(template="plotly_dark", height=400)
     st.plotly_chart(fig4, use_container_width=True)
 
 st.divider()

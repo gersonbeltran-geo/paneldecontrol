@@ -186,7 +186,9 @@ st.subheader("🥧 Distribución general")
 g1, g2 = st.columns(2)
 with g1:
     st.caption("Tipología de clientes")
-    fig1 = px.pie(f.dropna(subset=["TIPOLOGÍA DE CLIENTES"]), names="TIPOLOGÍA DE CLIENTES")
+    datos_tipologia = f.dropna(subset=["TIPOLOGÍA DE CLIENTES"])
+    datos_tipologia = datos_tipologia[datos_tipologia["TIPOLOGÍA DE CLIENTES"].str.strip() != ""]
+    fig1 = px.pie(datos_tipologia, names="TIPOLOGÍA DE CLIENTES")
     fig1.update_layout(template="plotly_dark", height=350)
     st.plotly_chart(fig1, use_container_width=True)
 with g2:
@@ -197,8 +199,11 @@ with g2:
 g3, g4 = st.columns(2)
 with g3:
     st.caption("Línea de negocio")
-    fig3 = px.pie(f.dropna(subset=["LÍNEA DE NEGOCIO"]), names="LÍNEA DE NEGOCIO")
-    fig3.update_layout(template="plotly_dark", height=350)
+    datos_linea = f.dropna(subset=["LÍNEA DE NEGOCIO"])
+    conteo_linea = datos_linea["LÍNEA DE NEGOCIO"].value_counts().reset_index()
+    conteo_linea.columns = ["LÍNEA DE NEGOCIO", "Nº oportunidades"]
+    fig3 = px.bar(conteo_linea.sort_values("Nº oportunidades"), x="Nº oportunidades", y="LÍNEA DE NEGOCIO", orientation="h")
+    fig3.update_layout(template="plotly_dark", height=500)
     st.plotly_chart(fig3, use_container_width=True)
 with g4:
     st.caption("Canal de captación")
